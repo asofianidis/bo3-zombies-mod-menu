@@ -1,0 +1,8 @@
+{
+	"PublisherID": "",
+	"Title": "Zombies Mod Menu",
+	"Description": "In-game mod menu for Black Ops III Zombies (host only). Open with ADS + Melee.",
+	"FolderName": "zm_modmenu",
+	"Tags": "Zombies",
+	"Type": "mod"
+}

@@ -1,4 +1,6 @@
+# Linker output
 *.ff
-*.ff.*
-zone/
+zm_modmenu/zone/*
+!zm_modmenu/zone/workshop.json
+zm_modmenu/zone_source/*/
 *.log
