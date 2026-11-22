@@ -114,6 +114,13 @@ if ($BuildDir -ne $Dest) {
     Write-Host "Installed compiled mod to $Dest\zone"
 }
 
+# Copy the compiled fastfiles back into the repo so they can be committed and
+# released by CI, and record a hash of the sources they were built from.
+Copy-Item -Path (Join-Path $BuildDir "zone\*.ff") -Destination (Join-Path $Source "zone") -Force
+$hash = & (Join-Path $PSScriptRoot "tools\source-hash.ps1")
+Set-Content -Path (Join-Path $Source "zone\build.hash") -Value $hash -NoNewline -Encoding ascii
+Write-Host "Updated repo build output (source hash $hash). Commit zm_modmenu\zone to publish a release."
+
 Write-Host ""
 Write-Host "To play: start BO3 > Mods > select 'zm_modmenu' > Load, then start any Zombies map."
 Write-Host "In game: ADS + Melee opens the menu."

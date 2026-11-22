@@ -1,6 +1,4 @@
-# Linker output
-*.ff
-zm_modmenu/zone/*
-!zm_modmenu/zone/workshop.json
+# Linker output: only the final fastfiles in zm_modmenu/zone are committed
 zm_modmenu/zone_source/*/
 *.log
+*.zip

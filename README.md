@@ -24,7 +24,11 @@ It is for **private / solo / custom games only**. Only the host gets the menu.
 - **Teleport**: Save / Load position, Teleport to crosshair
 - **Fun**: Third Person, Super Speed
 
-## Install
+## Download
+
+Get the prebuilt mod from [**Releases**](../../releases/latest). Extract `zm_modmenu.zip` into `<BO3>\mods\`, so that you end up with `mods\zm_modmenu\zone\zm_mod.ff`. Then start BO3, go to **Mods**, select **zm_modmenu**, press **Load**, and start any Zombies map.
+
+## Build from source
 
 Requirements:
 - Black Ops III (Steam)
@@ -54,3 +58,15 @@ The menu was made with reference to the open-source [Synergy GSC Menu](https://g
 - Only one mod can be loaded at a time.
 - How Turn On Power behaves depends on the map, because some maps use unusual power setups.
 - A custom map that ships its own `_clientids.gsc` may override this one.
+
+## Releases (CI)
+
+Every push to `main` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which publishes a release with `zm_modmenu.zip`.
+
+GitHub's cloud runners can't run the BO3 Mod Tools, so the `.ff` files are compiled locally and committed. To change the menu:
+
+1. Edit `zm_modmenu/scripts/zm/gametypes/_clientids.gsc`.
+2. Run `.\install.ps1`. It compiles the mod, installs it into your game, and copies the `.ff` files and `build.hash` into `zm_modmenu/zone`.
+3. Commit everything, including `zm_modmenu/zone`, and push.
+
+CI checks that `build.hash` matches the current sources. If you forget step 2, the workflow fails instead of releasing a stale build.

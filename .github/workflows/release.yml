@@ -1,0 +1,72 @@
+name: Build & Release
+
+# The BO3 Mod Tools can't run on GitHub-hosted runners, so the mod is compiled
+# locally with install.ps1, which copies the .ff files and a source hash into
+# zm_modmenu/zone for committing.
+# This workflow verifies those compiled files match the current sources, packages
+# them, and publishes a GitHub release on every push to main.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify compiled mod is present and up to date
+        run: |
+          for f in zm_mod.ff en_zm_mod.ff workshop.json build.hash; do
+            if [ ! -f "zm_modmenu/zone/$f" ]; then
+              echo "::error::zm_modmenu/zone/$f is missing. Run .\install.ps1 locally and commit zm_modmenu/zone."
+              exit 1
+            fi
+          done
+          expected="$(bash tools/source-hash.sh)"
+          actual="$(tr -d '\r\n' < zm_modmenu/zone/build.hash)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::The compiled .ff files are stale: the scripts changed since the last build. Run .\install.ps1 locally and commit zm_modmenu/zone."
+            echo "source hash:   $expected"
+            echo "built from:    $actual"
+            exit 1
+          fi
+          echo "Compiled mod matches sources ($expected)"
+
+      - name: Package
+        run: |
+          mkdir -p dist/zm_modmenu/zone
+          cp zm_modmenu/zone/*.ff zm_modmenu/zone/workshop.json dist/zm_modmenu/zone/
+          cd dist && zip -r ../zm_modmenu.zip zm_modmenu
+          cd .. && unzip -l zm_modmenu.zip
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v1.0.${{ github.run_number }}"
+          subject="$(git log -1 --format=%s)"
+          cat > notes.md <<EOF
+          **Latest change:** ${subject} (${GITHUB_SHA::7})
+
+          ## Install
+          1. Download **zm_modmenu.zip** below.
+          2. Extract it into your Black Ops III \`mods\` folder, so you end up with
+             \`Call of Duty Black Ops III\\mods\\zm_modmenu\\zone\\zm_mod.ff\`.
+             Create the \`mods\` folder if it doesn't exist.
+          3. Start BO3 → **Mods** → select **zm_modmenu** → **Load**, then start any Zombies map.
+          4. In game, press **ADS + Melee** to open the menu (host only).
+          EOF
+          gh release create "$tag" zm_modmenu.zip \
+            --target "$GITHUB_SHA" \
+            --title "Zombies Mod Menu $tag" \
+            --notes-file notes.md
