@@ -18,6 +18,7 @@
 #>
 param(
     [string]$GamePath,
+    [string]$ToolsPath,
     [switch]$NoBuild,
     [switch]$Launch,
     [string]$Language = "english"
@@ -60,16 +61,33 @@ Write-Host "Copied mod to $Dest"
 
 if ($NoBuild) { Write-Host "Skipping build (-NoBuild)."; exit 0 }
 
-# --- Build with Mod Tools ---------------------------------------------------
-$linker = Join-Path $GamePath "bin\linker_modtools.exe"
-$gdtdb  = Join-Path $GamePath "gdtdb\gdtdb.exe"
-if (-not (Test-Path $linker)) {
-    throw "BO3 Mod Tools not installed ($linker missing). Install 'Call of Duty: Black Ops III - Mod Tools' from Steam > Library > Tools, then re-run."
+# --- Locate Mod Tools -------------------------------------------------------
+# Usually installed into the game folder, but Steam can also put them in a
+# sibling folder named "Call of Duty Black Ops III 455130".
+if (-not $ToolsPath) {
+    $candidates = @($GamePath, (Join-Path (Split-Path $GamePath -Parent) "Call of Duty Black Ops III 455130"))
+    $ToolsPath = $candidates | Where-Object { Test-Path (Join-Path $_ "bin\linker_modtools.exe") } | Select-Object -First 1
+}
+if (-not $ToolsPath) {
+    throw "BO3 Mod Tools not found. Install 'Call of Duty: Black Ops III - Mod Tools' from Steam > Library > Tools (or pass -ToolsPath), then re-run."
+}
+$ToolsPath = (Resolve-Path $ToolsPath).Path.TrimEnd('\')
+Write-Host "Mod Tools:     $ToolsPath"
+
+$linker = Join-Path $ToolsPath "bin\linker_modtools.exe"
+$gdtdb  = Join-Path $ToolsPath "gdtdb\gdtdb.exe"
+
+# The linker builds mods inside its own TA_GAME_PATH\mods folder
+$BuildDir = Join-Path $ToolsPath "mods\$ModName"
+if ($BuildDir -ne $Dest) {
+    if (Test-Path $BuildDir) { Remove-Item $BuildDir -Recurse -Force }
+    New-Item -ItemType Directory -Force (Join-Path $ToolsPath "mods") | Out-Null
+    Copy-Item -Path $Source -Destination (Join-Path $ToolsPath "mods") -Recurse -Force
 }
 
-# The Mod Tools expect these environment variables (normally set by the launcher)
-$env:TA_TOOLS_PATH = "$GamePath\"
-$env:TA_GAME_PATH  = "$GamePath\"
+$env:TA_TOOLS_PATH        = "$ToolsPath\"
+$env:TA_GAME_PATH         = "$ToolsPath\"
+$env:TA_LOCAL_ASSET_CACHE = "$ToolsPath\share\assetconvert\"
 
 if (Test-Path $gdtdb) {
     Write-Host "Updating gdtdb..."
@@ -77,17 +95,24 @@ if (Test-Path $gdtdb) {
 }
 
 Write-Host "Linking $ModName (zm_mod)..."
-Push-Location (Join-Path $GamePath "bin")
+Push-Location (Join-Path $ToolsPath "bin")
 try {
     & $linker -language $Language -fs_game $ModName -modsource zm_mod | Out-Host
     $code = $LASTEXITCODE
 } finally { Pop-Location }
 
-$ff = Join-Path $Dest "zone\zm_mod.ff"
+$ff = Join-Path $BuildDir "zone\zm_mod.ff"
 if ($code -ne 0 -or -not (Test-Path $ff)) {
     throw "Build failed (exit code $code). Scroll up for the linker error."
 }
 Write-Host "Build OK: $ff" -ForegroundColor Green
+
+# Copy the compiled fastfiles into the real game's mods folder
+if ($BuildDir -ne $Dest) {
+    New-Item -ItemType Directory -Force (Join-Path $Dest "zone") | Out-Null
+    Copy-Item -Path (Join-Path $BuildDir "zone\*") -Destination (Join-Path $Dest "zone") -Recurse -Force
+    Write-Host "Installed compiled mod to $Dest\zone"
+}
 
 Write-Host ""
 Write-Host "To play: start BO3 > Mods > select 'zm_modmenu' > Load, then start any Zombies map."
